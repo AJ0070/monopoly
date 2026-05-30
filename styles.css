@@ -1566,3 +1566,175 @@ input[type="button"]:disabled {
 		row-gap: 8px;
 	}
 }
+
+/* =====================================================================
+   Dark "tabletop" theme (richup.io-inspired): deep indigo app chrome,
+   dark felt board with light tiles, glassy cards, glossy dice.
+   ===================================================================== */
+:root {
+	--bg: #262348;
+	--bg-deep: #1a1834;
+	--ink: #eef0fb;
+	--muted: #9fa0cc;
+	--panel: rgba(46, 43, 84, 0.88);
+	--panel-strong: rgba(54, 50, 98, 0.96);
+	--line: rgba(255, 255, 255, 0.10);
+	--line-strong: rgba(255, 255, 255, 0.20);
+	--accent: #ffb257;
+	--accent-deep: #f6912f;
+	--gold: #ffd35a;
+	--success: #34d399;
+	--shadow: 0 24px 50px rgba(0, 0, 0, 0.45);
+}
+
+body {
+	background:
+		radial-gradient(circle at 14% 8%, rgba(108, 92, 196, 0.38), transparent 42%),
+		radial-gradient(circle at 86% 0%, rgba(52, 116, 184, 0.30), transparent 40%),
+		linear-gradient(180deg, #2b2752 0%, #211e40 52%, #1a1733 100%);
+	background-attachment: fixed;
+	color: var(--ink);
+}
+
+/* Primary actions: richup-style vivid green. */
+input[type="button"],
+button.primary-action,
+.primary-action {
+	background: linear-gradient(180deg, #41e08c, #21bd6d);
+	color: #06291c;
+	font-weight: 800;
+	box-shadow: 0 14px 24px rgba(33, 189, 109, 0.32);
+}
+
+.secondary-action,
+.ghost-action,
+.mini-action {
+	background: rgba(255, 255, 255, 0.07);
+	color: var(--ink);
+	border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+/* Glassy dark surfaces. */
+.hero-copy {
+	background: linear-gradient(180deg, rgba(58, 53, 104, 0.95), rgba(42, 39, 80, 0.92));
+}
+
+#table-status-card {
+	background: linear-gradient(180deg, rgba(64, 110, 214, 0.34), rgba(40, 37, 84, 0.7)), var(--panel-strong);
+}
+
+.join-panel {
+	background: rgba(255, 255, 255, 0.05);
+	border-color: rgba(255, 255, 255, 0.10);
+}
+
+.lobby-message {
+	background: rgba(255, 255, 255, 0.05);
+	border-color: rgba(255, 255, 255, 0.10);
+}
+
+.sidebar-card {
+	background: rgba(255, 255, 255, 0.05);
+	border-color: rgba(255, 255, 255, 0.10);
+}
+
+.seat-card,
+.summary-item,
+.moneybarcell,
+#quickstats,
+#alert,
+#landed,
+#owned,
+#option,
+.statscell,
+.board-chip {
+	background: linear-gradient(180deg, rgba(60, 55, 106, 0.92), rgba(46, 43, 84, 0.92));
+	border-color: rgba(255, 255, 255, 0.12);
+}
+
+.chat-line {
+	background: rgba(255, 255, 255, 0.06);
+	border-color: rgba(255, 255, 255, 0.10);
+}
+
+.text-field,
+#setup input[type="text"],
+#setup select,
+#trade input,
+#trade select,
+.chat-input {
+	background: rgba(255, 255, 255, 0.07);
+	color: var(--ink);
+	border-color: rgba(255, 255, 255, 0.16);
+}
+
+.menu-item:hover {
+	background: rgba(255, 255, 255, 0.12);
+}
+
+/* Board: dark felt with a subtle dark frame; tiles stay light and legible. */
+#board-stage {
+	background:
+		radial-gradient(circle at 50% 40%, rgba(74, 116, 102, 0.35), transparent 60%),
+		linear-gradient(180deg, #1f3b34 0%, #16302a 100%);
+}
+
+#board-stage::before,
+#board-stage::after {
+	display: none;
+}
+
+#board-frame {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03));
+	border-color: rgba(255, 255, 255, 0.14);
+}
+
+#board {
+	border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Center card: dark glass; dice stay light so they pop. */
+#board-centerpiece {
+	background: linear-gradient(180deg, rgba(54, 50, 98, 0.97), rgba(40, 37, 78, 0.97));
+	border-color: rgba(255, 255, 255, 0.12);
+}
+
+.center-die {
+	background: linear-gradient(180deg, #fbfdff, #e7eefc);
+	color: #1d2748;
+	border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Keep the property tiles light, with dark text + visible dark icons. */
+.cell {
+	background: linear-gradient(180deg, #fffdf6, #f2ebd2);
+	border-color: rgba(20, 30, 50, 0.18);
+}
+
+.cell-name,
+.board-corner .cell-name {
+	color: #21304a;
+	text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
+}
+
+.is-property .cell-name {
+	color: #fff;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65), 0 0 2px rgba(0, 0, 0, 0.45);
+}
+
+#jail {
+	background: rgba(255, 255, 255, 0.7);
+	border-color: rgba(20, 30, 50, 0.3);
+}
+
+/* Hover tooltips + modals as dark cards. */
+.enlarge {
+	background: rgba(42, 39, 82, 0.97);
+	color: var(--ink);
+	border-color: rgba(255, 255, 255, 0.16);
+}
+
+.floating-note {
+	background: rgba(255, 255, 255, 0.06);
+	color: var(--muted);
+}
