@@ -1345,7 +1345,7 @@ function updatePosition() {
 
 			if (player[y].position == x && !player[y].jail) {
 
-				document.getElementById("cell" + x + "positionholder").innerHTML += "<div class='cell-position' title='" + player[y].name + "' style='background-color: " + player[y].color + "; left: " + left + "px; top: " + top + "px;'></div>";
+				document.getElementById("cell" + x + "positionholder").innerHTML += "<div class='cell-position' title='" + player[y].name + "' style='background-color: " + player[y].color + "; left: " + left + "px; top: " + top + "px;'>" + (player[y].name ? player[y].name.charAt(0).toUpperCase() : "") + "</div>";
 				if (left == 36) {
 					left = 0;
 					top = 12;
@@ -1357,7 +1357,7 @@ function updatePosition() {
 		for (var y = 1; y < turn; y++) {
 
 			if (player[y].position == x && !player[y].jail) {
-				document.getElementById("cell" + x + "positionholder").innerHTML += "<div class='cell-position' title='" + player[y].name + "' style='background-color: " + player[y].color + "; left: " + left + "px; top: " + top + "px;'></div>";
+				document.getElementById("cell" + x + "positionholder").innerHTML += "<div class='cell-position' title='" + player[y].name + "' style='background-color: " + player[y].color + "; left: " + left + "px; top: " + top + "px;'>" + (player[y].name ? player[y].name.charAt(0).toUpperCase() : "") + "</div>";
 				if (left == 36) {
 					left = 0;
 					top = 12;
@@ -1371,7 +1371,7 @@ function updatePosition() {
 	top = 53;
 	for (var i = turn; i <= pcount; i++) {
 		if (player[i].jail) {
-			document.getElementById("jailpositionholder").innerHTML += "<div class='cell-position' title='" + player[i].name + "' style='background-color: " + player[i].color + "; left: " + left + "px; top: " + top + "px;'></div>";
+			document.getElementById("jailpositionholder").innerHTML += "<div class='cell-position' title='" + player[i].name + "' style='background-color: " + player[i].color + "; left: " + left + "px; top: " + top + "px;'>" + (player[i].name ? player[i].name.charAt(0).toUpperCase() : "") + "</div>";
 
 			if (left === 36) {
 				left = 0;
@@ -1384,7 +1384,7 @@ function updatePosition() {
 
 	for (var i = 1; i < turn; i++) {
 		if (player[i].jail) {
-			document.getElementById("jailpositionholder").innerHTML += "<div class='cell-position' title='" + player[i].name + "' style='background-color: " + player[i].color + "; left: " + left + "px; top: " + top + "px;'></div>";
+			document.getElementById("jailpositionholder").innerHTML += "<div class='cell-position' title='" + player[i].name + "' style='background-color: " + player[i].color + "; left: " + left + "px; top: " + top + "px;'>" + (player[i].name ? player[i].name.charAt(0).toUpperCase() : "") + "</div>";
 			if (left === 36) {
 				left = 0;
 				top = 41;
@@ -2832,6 +2832,14 @@ function getBoardCellIcon(index, sq) {
 		return '<img src="images/water_icon.png" alt="" />';
 	}
 
+	// City properties show their country's flag.
+	if (sq.groupNumber >= 3 && typeof groupFlag === "function") {
+		var flag = groupFlag(sq.groupNumber);
+		if (flag) {
+			return '<span class="cell-flag">' + flag + '</span>';
+		}
+	}
+
 	return "";
 }
 
@@ -2925,6 +2933,9 @@ window.onload = function() {
 		currentCellAnchor = currentCell.appendChild(document.createElement("div"));
 		currentCellAnchor.id = "cell" + i + "anchor";
 		currentCellAnchor.className = "cell-anchor";
+		if (s.groupNumber >= 3) {
+			currentCellAnchor.classList.add("is-property");
+		}
 
 		currentCellPositionHolder = currentCellAnchor.appendChild(document.createElement("div"));
 		currentCellPositionHolder.id = "cell" + i + "positionholder";
@@ -2934,7 +2945,9 @@ window.onload = function() {
 		currentCellColor = currentCellAnchor.appendChild(document.createElement("div"));
 		currentCellColor.id = "cell" + i + "color";
 		currentCellColor.className = "cell-color-band";
-		currentCellColor.style.backgroundColor = s.groupNumber ? s.color : "transparent";
+		// Only city properties get a colored strip; transit/utility/special
+		// cells stay clear so their dark name and icon read cleanly.
+		currentCellColor.style.backgroundColor = s.groupNumber >= 3 ? s.color : "transparent";
 
 		currentCellIcon = currentCellAnchor.appendChild(document.createElement("div"));
 		currentCellIcon.id = "cell" + i + "icon";

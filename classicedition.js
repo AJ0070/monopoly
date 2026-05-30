@@ -35,12 +35,6 @@ function Card(text, action) {
 }
 
 function corrections() {
-	document.getElementById("cell1name").textContent = "Marrakech";
-	document.getElementById("cell3name").textContent = "Lisbon";
-	document.getElementById("cell14name").textContent = "Tokyo";
-	document.getElementById("cell19name").textContent = "Bangkok";
-	document.getElementById("cell32name").textContent = "Toronto";
-
 	// Add images to enlarges.
 	document.getElementById("enlarge5token").innerHTML += '<img src="images/train_icon.png" height="60" width="65" alt="" style="position: relative; bottom: 20px;" />';
 	document.getElementById("enlarge15token").innerHTML += '<img src="images/train_icon.png" height="60" width="65" alt="" style="position: relative; top: -20px;" />';
@@ -74,46 +68,63 @@ function citytax() {
 
 var square = [];
 
+// Each color group is themed as one country; its properties are cities of
+// that country. groupFlag() (below) maps the group to the country's flag.
 square[0] = new Square("GO", "COLLECT $200 SALARY AS YOU PASS.", "#FFFFFF");
-square[1] = new Square("Marrakech", "$60", "#8B4513", 60, 3, 2, 10, 30, 90, 160, 250);
+square[1] = new Square("Marrakech", "$60", "#8B4513", 60, 3, 2, 10, 30, 90, 160, 250);          // Morocco
 square[2] = new Square("World Fund", "FOLLOW INSTRUCTIONS ON TOP CARD", "#FFFFFF");
-square[3] = new Square("Lisbon", "$60", "#8B4513", 60, 3, 4, 20, 60, 180, 320, 450);
+square[3] = new Square("Casablanca", "$60", "#8B4513", 60, 3, 4, 20, 60, 180, 320, 450);        // Morocco
 square[4] = new Square("City Tax", "Pay $200", "#FFFFFF");
 square[5] = new Square("Heathrow Express", "$200", "#FFFFFF", 200, 1);
-square[6] = new Square("CapeTown", "$100", "#87CEEB", 100, 4, 6, 30, 90, 270, 400, 550);
+square[6] = new Square("Perth", "$100", "#87CEEB", 100, 4, 6, 30, 90, 270, 400, 550);           // Australia
 square[7] = new Square("Travel Card", "FOLLOW INSTRUCTIONS ON TOP CARD", "#FFFFFF");
-square[8] = new Square("Sydney", "$100", "#87CEEB", 100, 4, 6, 30, 90, 270, 400, 550);
-square[9] = new Square("Vancouver", "$120", "#87CEEB", 120, 4, 8, 40, 100, 300, 450, 600);
+square[8] = new Square("Sydney", "$100", "#87CEEB", 100, 4, 6, 30, 90, 270, 400, 550);          // Australia
+square[9] = new Square("Melbourne", "$120", "#87CEEB", 120, 4, 8, 40, 100, 300, 450, 600);      // Australia
 square[10] = new Square("Just Visiting", "", "#FFFFFF");
-square[11] = new Square("Dubai", "$140", "#FF0080", 140, 5, 10, 50, 150, 450, 625, 750);
+square[11] = new Square("Dubai", "$140", "#FF0080", 140, 5, 10, 50, 150, 450, 625, 750);        // UAE
 square[12] = new Square("Global Power Grid", "$150", "#FFFFFF", 150, 2);
-square[13] = new Square("Singapore", "$140", "#FF0080", 140, 5, 10, 50, 150, 450, 625, 750);
-square[14] = new Square("Tokyo", "$160", "#FF0080", 160, 5, 12, 60, 180, 500, 700, 900);
+square[13] = new Square("Sharjah", "$140", "#FF0080", 140, 5, 10, 50, 150, 450, 625, 750);      // UAE
+square[14] = new Square("Abu Dhabi", "$160", "#FF0080", 160, 5, 12, 60, 180, 500, 700, 900);    // UAE
 square[15] = new Square("Shinkansen Line", "$200", "#FFFFFF", 200, 1);
-square[16] = new Square("Istanbul", "$180", "#FFA500", 180, 6, 14, 70, 200, 550, 750, 950);
+square[16] = new Square("Istanbul", "$180", "#FFA500", 180, 6, 14, 70, 200, 550, 750, 950);     // Turkey
 square[17] = new Square("World Fund", "FOLLOW INSTRUCTIONS ON TOP CARD", "#FFFFFF");
-square[18] = new Square("Rio", "$180", "#FFA500", 180, 6, 14, 70, 200, 550, 750, 950);
-square[19] = new Square("Bangkok", "$200", "#FFA500", 200, 6, 16, 80, 220, 600, 800, 1000);
+square[18] = new Square("Ankara", "$180", "#FFA500", 180, 6, 14, 70, 200, 550, 750, 950);       // Turkey
+square[19] = new Square("Izmir", "$200", "#FFA500", 200, 6, 16, 80, 220, 600, 800, 1000);       // Turkey
 square[20] = new Square("Free Parking", "", "#FFFFFF");
-square[21] = new Square("Paris", "$220", "#FF0000", 220, 7, 18, 90, 250, 700, 875, 1050);
+square[21] = new Square("Paris", "$220", "#FF0000", 220, 7, 18, 90, 250, 700, 875, 1050);       // France
 square[22] = new Square("Travel Card", "FOLLOW INSTRUCTIONS ON TOP CARD", "#FFFFFF");
-square[23] = new Square("Barcelona", "$220", "#FF0000", 220, 7, 18, 90, 250, 700, 875, 1050);
-square[24] = new Square("Rome", "$240", "#FF0000", 240, 7, 20, 100, 300, 750, 925, 1100);
+square[23] = new Square("Lyon", "$220", "#FF0000", 220, 7, 18, 90, 250, 700, 875, 1050);        // France
+square[24] = new Square("Marseille", "$240", "#FF0000", 240, 7, 20, 100, 300, 750, 925, 1100);  // France
 square[25] = new Square("Dubai Metro", "$200", "#FFFFFF", 200, 1);
-square[26] = new Square("Seoul", "$260", "#FFFF00", 260, 8, 22, 110, 330, 800, 975, 1150);
-square[27] = new Square("HongKong", "$260", "#FFFF00", 260, 8, 22, 110, 330, 800, 975, 1150);
+square[26] = new Square("Seoul", "$260", "#FFFF00", 260, 8, 22, 110, 330, 800, 975, 1150);      // South Korea
+square[27] = new Square("Busan", "$260", "#FFFF00", 260, 8, 22, 110, 330, 800, 975, 1150);      // South Korea
 square[28] = new Square("Global Water Grid", "$150", "#FFFFFF", 150, 2);
-square[29] = new Square("MexicoCity", "$280", "#FFFF00", 280, 8, 24, 120, 360, 850, 1025, 1200);
+square[29] = new Square("Incheon", "$280", "#FFFF00", 280, 8, 24, 120, 360, 850, 1025, 1200);   // South Korea
 square[30] = new Square("Go to Jail", "Go directly to Jail. Do not pass GO. Do not collect $200.", "#FFFFFF");
-square[31] = new Square("Berlin", "$300", "#008000", 300, 9, 26, 130, 390, 900, 1100, 1275);
-square[32] = new Square("Toronto", "$300", "#008000", 300, 9, 26, 130, 390, 900, 1100, 1275);
+square[31] = new Square("Berlin", "$300", "#008000", 300, 9, 26, 130, 390, 900, 1100, 1275);    // Germany
+square[32] = new Square("Munich", "$300", "#008000", 300, 9, 26, 130, 390, 900, 1100, 1275);    // Germany
 square[33] = new Square("World Fund", "FOLLOW INSTRUCTIONS ON TOP CARD", "#FFFFFF");
-square[34] = new Square("AbuDhabi", "$320", "#008000", 320, 9, 28, 150, 450, 1000, 1200, 1400);
+square[34] = new Square("Hamburg", "$320", "#008000", 320, 9, 28, 150, 450, 1000, 1200, 1400);  // Germany
 square[35] = new Square("JFK AirTrain", "$200", "#FFFFFF", 200, 1);
 square[36] = new Square("Travel Card", "FOLLOW INSTRUCTIONS ON TOP CARD", "#FFFFFF");
-square[37] = new Square("Zurich", "$350", "#0000FF", 350, 10, 35, 175, 500, 1100, 1300, 1500);
+square[37] = new Square("Tokyo", "$350", "#0000FF", 350, 10, 35, 175, 500, 1100, 1300, 1500);   // Japan
 square[38] = new Square("LUXURY TAX", "Pay $100", "#FFFFFF");
-square[39] = new Square("Monaco", "$400", "#0000FF", 400, 10, 50, 200, 600, 1400, 1700, 2000);
+square[39] = new Square("Osaka", "$400", "#0000FF", 400, 10, 50, 200, 600, 1400, 1700, 2000);   // Japan
+
+// Country flag (emoji) for each buildable color group.
+function groupFlag(groupNumber) {
+	var flags = {
+		3: "🇲🇦",  // Morocco
+		4: "🇦🇺",  // Australia
+		5: "🇦🇪",  // UAE
+		6: "🇹🇷",  // Turkey
+		7: "🇫🇷",  // France
+		8: "🇰🇷",  // South Korea
+		9: "🇩🇪",  // Germany
+		10: "🇯🇵" // Japan
+	};
+	return flags[groupNumber] || "";
+}
 
 var communityChestCards = [];
 var chanceCards = [];
@@ -146,8 +157,8 @@ chanceCards[6] = new Card("Your international portfolio pays a dividend of $50."
 chanceCards[7] = new Card("Advance to the nearest transit hub. If unowned, you may buy it from the bank. If owned, pay owner twice the rental to which they are otherwise entitled.", function() { advanceToNearestRailroad();});
 chanceCards[8] = new Card("Pay a travel tax of $15.", function() { subtractamount(15, 'Travel Card');});
 chanceCards[9] = new Card("Catch the Heathrow Express. If you pass GO collect $200.", function() { advance(5);});
-chanceCards[10] = new Card("Advance to Monaco.", function() { advance(39);});
-chanceCards[11] = new Card("Advance to Rome. If you pass GO collect $200.", function() { advance(24);});
+chanceCards[10] = new Card("Advance to Osaka.", function() { advance(39);});
+chanceCards[11] = new Card("Advance to Marseille. If you pass GO collect $200.", function() { advance(24);});
 chanceCards[12] = new Card("Your development loan matures. Collect $150.", function() { addamount(150, 'Travel Card');});
 chanceCards[13] = new Card("Advance to the nearest transit hub. If unowned, you may buy it from the bank. If owned, pay owner twice the rental to which they are otherwise entitled.", function() { advanceToNearestRailroad();});
 chanceCards[14] = new Card("Advance to Dubai. If you pass GO collect $200.", function() { advance(11);});

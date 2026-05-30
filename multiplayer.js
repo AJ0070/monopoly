@@ -181,7 +181,13 @@
 
 		var boardStage = document.createElement("div");
 		boardStage.id = "board-stage";
-		boardStage.innerHTML = "" +
+		boardStage.innerHTML = "<div id='board-frame'></div>";
+
+		var sidebarStage = document.createElement("div");
+		sidebarStage.id = "sidebar-stage";
+		sidebarStage.innerHTML = "" +
+			"<section class='sidebar-card' id='sidebar-hud-card'>" +
+			"<div class='sidebar-card-label'>Table</div>" +
 			"<div id='board-hud'>" +
 			"<div class='board-chip'><span class='chip-label'>Mode</span><strong id='hud-mode'>Lobby</strong></div>" +
 			"<div class='board-chip'><span class='chip-label'>Room</span><strong id='hud-room-code'>Local</strong></div>" +
@@ -189,22 +195,18 @@
 			"<div class='board-chip highlight-chip'><span class='chip-label'>Turn</span><strong id='hud-turn'>Waiting</strong></div>" +
 			"<div class='board-chip' id='hud-link-chip'><span class='chip-label'>Link</span><strong id='hud-link'>Offline</strong></div>" +
 			"</div>" +
-			"<div id='board-frame'></div>";
-
-		var sidebarStage = document.createElement("div");
-		sidebarStage.id = "sidebar-stage";
-		sidebarStage.innerHTML = "" +
-			"<section id='sidebar-summary' class='sidebar-card'>" +
-			"<div class='sidebar-card-label'>Table pulse</div>" +
-			"<div class='sidebar-summary-grid'>" +
-			"<div class='summary-item'><span>Room</span><strong id='sidebar-room-code'>Local</strong></div>" +
-			"<div class='summary-item'><span>Your seat</span><strong id='sidebar-seat'>Seat 1</strong></div>" +
-			"<div class='summary-item wide'><span>Status</span><strong id='sidebar-status'>Waiting in lobby</strong></div>" +
-			"</div>" +
 			"</section>" +
 			"<section id='sidebar-money-panel' class='sidebar-card'><div class='sidebar-card-label'>Players</div></section>" +
 			"<section id='sidebar-control-panel' class='sidebar-card'><div class='sidebar-card-label'>Actions</div></section>" +
-			"<section id='sidebar-trade-panel' class='sidebar-card'><div class='sidebar-card-label'>Trade desk</div></section>";
+			"<section id='sidebar-trade-panel' class='sidebar-card'><div class='sidebar-card-label'>Trade desk</div></section>" +
+			"<section id='sidebar-chat-panel' class='sidebar-card'>" +
+			"<div class='sidebar-card-label'>Chat</div>" +
+			"<div id='chat-log' class='chat-log'></div>" +
+			"<div class='chat-input-row'>" +
+			"<input id='chat-input' class='chat-input' maxlength='200' placeholder='Message the table…' />" +
+			"<button id='chat-send' class='mini-action'>Send</button>" +
+			"</div>" +
+			"</section>";
 
 		main.appendChild(lobby);
 		main.appendChild(gameShell);
@@ -457,6 +459,88 @@
 		}
 	}
 
+	function localChatName() {
+		if (multiplayer.started && typeof player !== "undefined" && player[multiplayer.localSeat] && player[multiplayer.localSeat].name) {
+			return player[multiplayer.localSeat].name;
+		}
+		if (multiplayer.joinParams && multiplayer.joinParams.name) {
+			return multiplayer.joinParams.name;
+		}
+		return loadProfileName();
+	}
+
+	function localChatColor() {
+		if (multiplayer.started && typeof player !== "undefined" && player[multiplayer.localSeat] && player[multiplayer.localSeat].color) {
+			return player[multiplayer.localSeat].color;
+		}
+		return "#2488db";
+	}
+
+	function appendChatMessage(name, text, color) {
+		var log = byId("chat-log");
+		if (!log) {
+			return;
+		}
+		var line = document.createElement("div");
+		line.className = "chat-line";
+		var who = document.createElement("span");
+		who.className = "chat-who";
+		who.style.color = color || "#2488db";
+		who.textContent = (name || "Player") + ": ";
+		line.appendChild(who);
+		line.appendChild(document.createTextNode(text || ""));
+		log.appendChild(line);
+		while (log.children.length > 80) {
+			log.removeChild(log.firstChild);
+		}
+		log.scrollTop = log.scrollHeight;
+	}
+
+	function sendChat() {
+		var input = byId("chat-input");
+		if (!input) {
+			return;
+		}
+		var text = input.value.trim();
+		if (!text) {
+			return;
+		}
+		input.value = "";
+		var name = localChatName();
+		var color = localChatColor();
+
+		if (multiplayer.mode === "client") {
+			// The host echoes the message back to everyone, including us.
+			sendSafe(multiplayer.hostConnection, { type: "chat", name: name, text: text, color: color });
+			return;
+		}
+		if (multiplayer.mode === "host") {
+			appendChatMessage(name, text, color);
+			eachConnection(function (conn) {
+				sendSafe(conn, { type: "chat-msg", name: name, text: text, color: color });
+			});
+			return;
+		}
+		// Local hotseat: just show it.
+		appendChatMessage(name, text, color);
+	}
+
+	function attachChatEvents() {
+		var send = byId("chat-send");
+		var input = byId("chat-input");
+		if (send) {
+			send.addEventListener("click", sendChat);
+		}
+		if (input) {
+			input.addEventListener("keydown", function (event) {
+				if (event.key === "Enter") {
+					event.preventDefault();
+					sendChat();
+				}
+			});
+		}
+	}
+
 	function createHostPeer(code, retries) {
 		retries = retries || 0;
 		multiplayer.peer = new Peer(code);
@@ -606,6 +690,17 @@
 				return;
 			}
 			applyRemoteDomAction(message.action);
+			return;
+		}
+
+		if (message.type === "chat") {
+			var chatName = (message.name || "Player").slice(0, 16);
+			var chatText = (message.text || "").slice(0, 200);
+			var chatColor = message.color || "#2488db";
+			appendChatMessage(chatName, chatText, chatColor);
+			eachConnection(function (conn) {
+				sendSafe(conn, { type: "chat-msg", name: chatName, text: chatText, color: chatColor });
+			});
 			return;
 		}
 	}
@@ -798,6 +893,10 @@
 		}
 		if (message.type === "snapshot") {
 			applySnapshot(message.snapshot);
+			return;
+		}
+		if (message.type === "chat-msg") {
+			appendChatMessage(message.name, message.text, message.color);
 		}
 	}
 
@@ -922,8 +1021,8 @@
 			sidebar.style.overflowY = "auto";
 		}
 
-		// Account for everything around the board inside the stage (HUD,
-		// paddings) plus the page's bottom padding, so nothing gets clipped.
+		// Account for the stage paddings plus the page's bottom padding, so the
+		// board fills the height without anything getting clipped.
 		var overhead = stage.offsetHeight - natH;
 		var availH = window.innerHeight - stage.getBoundingClientRect().top - 16 - overhead;
 		var scale = Math.min(availW / natW, availH / natH, MAX_BOARD_SCALE);
@@ -1378,7 +1477,8 @@
 	}
 
 	function tokenMarkup(playerState, left, top) {
-		return "<div class='cell-position' title='" + escapeHtml(playerState.name) + "' style='background-color:" + playerState.color + "; left:" + left + "px; top:" + top + "px;'></div>";
+		var initial = playerState.name ? escapeHtml(playerState.name.charAt(0).toUpperCase()) : "";
+		return "<div class='cell-position' title='" + escapeHtml(playerState.name) + "' style='background-color:" + playerState.color + "; left:" + left + "px; top:" + top + "px;'>" + initial + "</div>";
 	}
 
 	function renderRemoteDice() {
@@ -1520,6 +1620,7 @@
 		buildShell();
 		initDefaults();
 		attachLobbyEvents();
+		attachChatEvents();
 		attachClientActionRelay();
 		patchGameHooks();
 		observeHostUi();
