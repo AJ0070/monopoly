@@ -11,7 +11,10 @@
 		latestDice: { die1: null, die2: null },
 		currentSnapshot: null,
 		broadcastTimer: null,
-		observer: null
+		observer: null,
+		joinParams: null,
+		reconnectAttempts: 0,
+		fitRaf: null
 	};
 
 	var playerDefaults = [];
@@ -82,6 +85,23 @@
 
 	function seatLabel(seat) {
 		return "Seat " + seat;
+	}
+
+	function setLinkStatus(state, text) {
+		var chip = byId("hud-link-chip");
+		var label = byId("hud-link");
+		if (chip) {
+			chip.setAttribute("data-state", state);
+		}
+		if (label) {
+			label.textContent = text;
+		}
+	}
+
+	function gameAlert(text) {
+		if (typeof addAlert === "function" && multiplayer.started) {
+			addAlert(text);
+		}
 	}
 
 	function buildShell() {
@@ -167,11 +187,7 @@
 			"<div class='board-chip'><span class='chip-label'>Room</span><strong id='hud-room-code'>Local</strong></div>" +
 			"<div class='board-chip'><span class='chip-label'>Seat</span><strong id='hud-seat'>Seat 1</strong></div>" +
 			"<div class='board-chip highlight-chip'><span class='chip-label'>Turn</span><strong id='hud-turn'>Waiting</strong></div>" +
-			"</div>" +
-			"<div id='board-centerpiece'>" +
-			"<div class='centerpiece-badge'>Live Table</div>" +
-			"<div class='centerpiece-title'>Build. Trade. Bankrupt the board.</div>" +
-			"<div class='centerpiece-subtitle'>Multiplayer rooms, private invites, and the full classic economy.</div>" +
+			"<div class='board-chip' id='hud-link-chip'><span class='chip-label'>Link</span><strong id='hud-link'>Offline</strong></div>" +
 			"</div>" +
 			"<div id='board-frame'></div>";
 
@@ -208,6 +224,22 @@
 		}
 
 		byId("board-frame").appendChild(byId("board"));
+
+		var centerpiece = document.createElement("div");
+		centerpiece.id = "board-centerpiece";
+		centerpiece.innerHTML = "" +
+			"<div id='center-turn-banner'>" +
+			"<span id='center-turn-dot'></span>" +
+			"<span id='center-turn-text'>Waiting for the table…</span>" +
+			"</div>" +
+			"<div id='center-dice'>" +
+			"<div id='center-die0' class='center-die'>?</div>" +
+			"<div id='center-die1' class='center-die'>?</div>" +
+			"</div>" +
+			"<div id='center-log-label'>Game log</div>" +
+			"<div id='center-log' class='center-log'></div>";
+		byId("board-frame").appendChild(centerpiece);
+
 		byId("sidebar-money-panel").appendChild(byId("moneybarwrap"));
 		byId("sidebar-control-panel").appendChild(byId("control"));
 		byId("sidebar-trade-panel").appendChild(byId("trade"));
@@ -442,18 +474,24 @@
 			renderRoster(buildRosterState());
 			setLobbyMessage("Room " + id + " is live. Share the invite and start when your table is ready.", "good");
 			setStatus("Hosting room " + id, "Share the code or invite link, then start when everyone is seated.");
+			setLinkStatus("online", "Hosting");
 			broadcastLobbyState();
 		});
 
 		multiplayer.peer.on("connection", function (connection) {
 			multiplayer.connections[connection.peer] = connection;
+			connection.on("open", function () {
+				// If a player (re)connects after the game has started, immediately
+				// catch them up with the authoritative snapshot.
+				if (multiplayer.started) {
+					sendSafe(connection, { type: "snapshot", snapshot: createSnapshot() });
+				}
+			});
 			connection.on("data", function (message) {
 				handleHostMessage(connection, message);
 			});
 			connection.on("close", function () {
-				removeSeatByPeer(connection.peer);
-				delete multiplayer.connections[connection.peer];
-				broadcastLobbyState();
+				handleGuestDisconnect(connection);
 			});
 		});
 
@@ -462,9 +500,49 @@
 				createHostPeer(randomRoomCode(), retries + 1);
 				return;
 			}
+			if (error && error.type === "peer-unavailable") {
+				// A guest's connection dropped; not fatal for the host.
+				return;
+			}
 			setLobbyMessage("Could not create the room. Please try again.", "bad");
+			setLinkStatus("bad", "Error");
 			console.error(error);
 		});
+	}
+
+	function handleGuestDisconnect(connection) {
+		var peerId = connection.peer;
+		delete multiplayer.connections[peerId];
+
+		if (!multiplayer.started) {
+			// Still in the lobby: just free the seat so someone else can take it.
+			removeSeatByPeer(peerId);
+			broadcastLobbyState();
+			return;
+		}
+
+		// Mid-game: hand the abandoned seat to the AI so play does not stall.
+		var keys = Object.keys(multiplayer.seatAssignments);
+		for (var i = 0; i < keys.length; i++) {
+			var seat = parseInt(keys[i], 10);
+			var assignment = multiplayer.seatAssignments[seat];
+			if (assignment && assignment.peerId === peerId && seat !== 1) {
+				assignment.disconnected = true;
+				if (player[seat] && !player[seat].lost && player[seat].human) {
+					player[seat].human = false;
+					player[seat].AI = new AITest(player[seat]);
+					player[seat].name = assignment.name + " (AI)";
+					gameAlert(assignment.name + " disconnected. The computer is taking over " + seatLabel(seat) + ".");
+				}
+				setStatus("A player disconnected", assignment.name + " left " + seatLabel(seat) + "; the computer is now playing that seat.");
+				// If it is the abandoned seat's turn, nudge the AI so the game continues.
+				if (typeof turn !== "undefined" && turn === seat && typeof game !== "undefined") {
+					window.setTimeout(function () { game.next(); }, 600);
+				}
+				break;
+			}
+		}
+		scheduleBroadcast();
 	}
 
 	function removeSeatByPeer(peerId) {
@@ -562,6 +640,7 @@
 			setLobbyEnabled(true);
 			setLobbyMessage("Local hotseat mode is ready. Start when you want.", "good");
 			setStatus("Local hotseat mode", "All turns are played on this device.");
+			setLinkStatus("neutral", "Local");
 		});
 
 		byId("join-room-button").addEventListener("click", function () {
@@ -630,32 +709,70 @@
 		}
 
 		saveProfileName(playerName);
-		setLobbyMessage("Connecting to room " + roomCode + ".", "neutral");
-		setStatus("Joining room " + roomCode, "Waiting for the host to accept your seat request.");
-
 		multiplayer.mode = "client";
 		multiplayer.roomCode = roomCode;
 		multiplayer.localSeat = preferredSeat;
+		multiplayer.joinParams = { roomCode: roomCode, name: playerName, seat: preferredSeat };
+		multiplayer.reconnectAttempts = 0;
+		connectToHost();
+	}
+
+	function connectToHost() {
+		var params = multiplayer.joinParams;
+		if (!params) {
+			return;
+		}
+		setLobbyMessage("Connecting to room " + params.roomCode + ".", "neutral");
+		setStatus("Joining room " + params.roomCode, "Waiting for the host to accept your seat request.");
+		setLinkStatus("warn", "Connecting");
+
+		if (multiplayer.peer) {
+			try { multiplayer.peer.destroy(); } catch (e) { /* ignore */ }
+		}
 		multiplayer.peer = new Peer();
 		multiplayer.peer.on("open", function () {
-			multiplayer.hostConnection = multiplayer.peer.connect(roomCode, { reliable: true });
+			multiplayer.hostConnection = multiplayer.peer.connect(params.roomCode, { reliable: true });
 			multiplayer.hostConnection.on("open", function () {
+				multiplayer.reconnectAttempts = 0;
+				setLinkStatus("online", "Connected");
 				sendSafe(multiplayer.hostConnection, {
 					type: "join-request",
-					seat: preferredSeat,
-					name: playerName
+					seat: params.seat,
+					name: params.name
 				});
 			});
 			multiplayer.hostConnection.on("data", handleClientMessage);
 			multiplayer.hostConnection.on("close", function () {
-				setLobbyMessage("The host disconnected.", "bad");
-				setStatus("Room closed", "Reconnect with a new invite if the host restarts the table.");
+				handleHostDisconnect();
 			});
 		});
 		multiplayer.peer.on("error", function (error) {
+			if (error && error.type === "peer-unavailable") {
+				handleHostDisconnect();
+				return;
+			}
 			setLobbyMessage("Could not join the room. Check the code and try again.", "bad");
+			setLinkStatus("bad", "Failed");
 			console.error(error);
 		});
+	}
+
+	function handleHostDisconnect() {
+		if (multiplayer.mode !== "client") {
+			return;
+		}
+		var attempts = multiplayer.reconnectAttempts || 0;
+		if (attempts < 5) {
+			multiplayer.reconnectAttempts = attempts + 1;
+			setLinkStatus("warn", "Reconnecting");
+			setLobbyMessage("Lost the host. Reconnecting (attempt " + multiplayer.reconnectAttempts + " of 5)…", "bad");
+			setStatus("Connection lost", "Trying to reconnect to the host. Hang tight.");
+			window.setTimeout(connectToHost, 1500 * multiplayer.reconnectAttempts);
+			return;
+		}
+		setLinkStatus("bad", "Offline");
+		setLobbyMessage("The host is unreachable. Ask for a fresh invite to rejoin.", "bad");
+		setStatus("Room closed", "Reconnect with a new invite if the host restarts the table.");
 	}
 
 	function handleClientMessage(message) {
@@ -717,7 +834,105 @@
 		byId("table-hero").style.display = "none";
 		byId("lobby-screen").style.display = "none";
 		byId("game-shell").style.display = "grid";
+		document.body.classList.add("in-game");
+		document.documentElement.classList.add("in-game");
 		updateBoardHud();
+		scheduleFit();
+		// Re-fit once late layout (fonts, dice images, sidebar) has settled.
+		window.setTimeout(fitGameToViewport, 60);
+		window.setTimeout(fitGameToViewport, 350);
+	}
+
+	function scheduleFit() {
+		if (multiplayer.fitRaf) {
+			window.cancelAnimationFrame(multiplayer.fitRaf);
+		}
+		multiplayer.fitRaf = window.requestAnimationFrame(fitGameToViewport);
+	}
+
+	// Below this width the layout stacks into a single column (see styles.css).
+	var COMPACT_MAX_WIDTH = 1240;
+
+	function isCompactViewport() {
+		return window.innerWidth <= COMPACT_MAX_WIDTH;
+	}
+
+	function setFitLock(locked) {
+		document.documentElement.classList.toggle("fit-lock", locked);
+		document.body.classList.toggle("fit-lock", locked);
+	}
+
+	// Largest the board is allowed to scale beyond its natural size, so it can
+	// fill big screens without the raster icons getting too soft.
+	var MAX_BOARD_SCALE = 1.6;
+
+	// Keep the board as large as possible while staying on-screen across every
+	// device. The board is built from fixed-size table cells, so we scale it
+	// with CSS `zoom` (which reflows layout, unlike `transform`).
+	//   - Desktop: scale the board to fill its column / the viewport height
+	//     (the sidebar gets its own internal scroll so it never shrinks the
+	//     board), with no page scroll.
+	//   - Tablet / phone: scale the board to fit the available width and let
+	//     the page scroll vertically to reach the controls below it.
+	function fitGameToViewport() {
+		var shell = byId("game-shell");
+		if (!shell || shell.style.display === "none") {
+			return;
+		}
+
+		var frame = byId("board-frame");
+		var stage = byId("board-stage");
+		var sidebar = byId("sidebar-stage");
+
+		// Reset zoom targets before measuring.
+		shell.style.zoom = "1";
+		if (frame) {
+			frame.style.zoom = "1";
+		}
+		if (sidebar) {
+			sidebar.style.maxHeight = "";
+			sidebar.style.overflowY = "";
+		}
+
+		if (!frame || !stage) {
+			return;
+		}
+
+		var cs = window.getComputedStyle(stage);
+		var availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2;
+		var natW = frame.offsetWidth;
+		var natH = frame.offsetHeight;
+		if (!natW || !natH || availW <= 0) {
+			return;
+		}
+
+		if (isCompactViewport()) {
+			// Mobile / tablet: width-fit the board, allow vertical scrolling.
+			setFitLock(false);
+			var widthScale = Math.min(1, availW / natW);
+			frame.style.zoom = widthScale >= 0.999 ? "1" : String(widthScale);
+			return;
+		}
+
+		// Desktop: give the sidebar its own scroll so it can't shrink the board,
+		// then scale the board to fill the available width and height.
+		setFitLock(true);
+		if (sidebar) {
+			sidebar.style.maxHeight = (window.innerHeight - sidebar.getBoundingClientRect().top - 14) + "px";
+			sidebar.style.overflowY = "auto";
+		}
+
+		// Account for everything around the board inside the stage (HUD,
+		// paddings) plus the page's bottom padding, so nothing gets clipped.
+		var overhead = stage.offsetHeight - natH;
+		var availH = window.innerHeight - stage.getBoundingClientRect().top - 16 - overhead;
+		var scale = Math.min(availW / natW, availH / natH, MAX_BOARD_SCALE);
+		if (scale > 0) {
+			frame.style.zoom = String(scale);
+		}
+
+		// Undo any scroll an autofocus (e.g. the Roll button) may have caused.
+		window.scrollTo(0, 0);
 	}
 
 	function resetBoardState() {
@@ -816,14 +1031,22 @@
 		customSetup();
 		scheduleBroadcast();
 		setStatus("Game in progress", "Share decisions from your seat. The host keeps the room authoritative.");
+		setLinkStatus(multiplayer.mode === "host" ? "online" : "neutral", multiplayer.mode === "host" ? "Hosting" : "Local");
 		updateBoardHud();
+	}
+
+	// Runs after any game action: keeps remote peers in sync and re-fits the
+	// view in case the action changed the layout height (e.g. action buttons).
+	function afterGameAction() {
+		scheduleBroadcast();
+		scheduleFit();
 	}
 
 	function patchGameHooks() {
 		var methods = ["next", "auctionBid", "auctionPass", "auctionExit", "proposeTrade", "acceptTrade", "cancelTrade", "resign", "bankruptcy", "bankruptcyUnmortgage"];
 		for (var i = 0; i < methods.length; i++) {
 			if (typeof game[methods[i]] === "function") {
-				wrapObjectMethod(game, methods[i], scheduleBroadcast);
+				wrapObjectMethod(game, methods[i], afterGameAction);
 			}
 		}
 
@@ -854,7 +1077,7 @@
 
 		for (var g = 0; g < globals.length; g++) {
 			if (typeof window[globals[g]] === "function") {
-				wrapGlobalFunction(globals[g], scheduleBroadcast);
+				wrapGlobalFunction(globals[g], afterGameAction);
 			}
 		}
 
@@ -897,7 +1120,7 @@
 		multiplayer.observer = new MutationObserver(function () {
 			scheduleBroadcast();
 		});
-		var targets = ["board", "moneybarwrap", "control", "trade", "popupwrap", "popupbackground", "statswrap", "statsbackground"];
+		var targets = ["board-frame", "moneybarwrap", "control", "trade", "popupwrap", "popupbackground", "statswrap", "statsbackground"];
 		for (var i = 0; i < targets.length; i++) {
 			var el = byId(targets[i]);
 			if (el) {
@@ -976,7 +1199,8 @@
 				statsTextHtml: byId("statstext").innerHTML,
 				statsWrapDisplay: byId("statswrap").style.display,
 				statsBackgroundDisplay: byId("statsbackground").style.display,
-				boardDisplay: byId("board").style.display
+				boardDisplay: byId("board").style.display,
+				centerLogHtml: byId("center-log") ? byId("center-log").innerHTML : ""
 			}
 		};
 	}
@@ -1015,9 +1239,36 @@
 		byId("statswrap").style.display = snapshot.ui.statsWrapDisplay || "none";
 		byId("statsbackground").style.display = snapshot.ui.statsBackgroundDisplay || "none";
 		applyGameState(snapshot.state);
+		if (byId("center-log") && typeof snapshot.ui.centerLogHtml === "string") {
+			var centerLog = byId("center-log");
+			centerLog.innerHTML = snapshot.ui.centerLogHtml;
+			centerLog.scrollTop = centerLog.scrollHeight;
+		}
+		renderCenterPanelFromState(snapshot.state);
 		renderBoardState();
 		setStatus("Room live: " + snapshot.roomCode, "You are " + seatLabel(multiplayer.localSeat) + ". Controls unlock during your turn.");
+		setLinkStatus("online", "Connected");
 		updateBoardHud();
+	}
+
+	function renderCenterPanelFromState(state) {
+		if (!state) {
+			return;
+		}
+		var active = player[state.turn];
+		var dot = byId("center-turn-dot");
+		var text = byId("center-turn-text");
+		if (dot && text && active) {
+			dot.style.backgroundColor = active.color || "#888";
+			text.textContent = active.name ? active.name + "'s turn" : "Turn " + state.turn;
+		}
+		var faces = ["?", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+		var d0 = byId("center-die0");
+		var d1 = byId("center-die1");
+		if (d0 && d1 && state.dice) {
+			d0.textContent = faces[state.dice.die1] || "?";
+			d1.textContent = faces[state.dice.die2] || "?";
+		}
 	}
 
 	function applyGameState(state) {
@@ -1284,5 +1535,7 @@
 			setLobbyMessage("Room code detected in the link. Enter your name and join when you're ready.", "neutral");
 		}
 		window.setup = customSetup;
+
+		window.addEventListener("resize", scheduleFit);
 	});
 })();

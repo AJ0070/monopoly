@@ -1226,8 +1226,54 @@ function addAlert(alertText) {
 	// Animate scrolling down alert element.
 	$alert.stop().animate({"scrollTop": $alert.prop("scrollHeight")}, 1000);
 
+	// Mirror the alert into the live board-center game log, if present.
+	var $centerLog = $("#center-log");
+	if ($centerLog.length) {
+		var color = (player[turn] && player[turn].color) ? player[turn].color : "#888";
+		$(document.createElement("div"))
+			.addClass("center-log-line")
+			.css("border-left-color", color)
+			.text(alertText)
+			.appendTo($centerLog);
+		// Keep the log from growing without bound.
+		var lines = $centerLog.children();
+		if (lines.length > 60) {
+			lines.slice(0, lines.length - 60).remove();
+		}
+		$centerLog.stop().animate({"scrollTop": $centerLog.prop("scrollHeight")}, 600);
+	}
+
 	if (!player[turn].human) {
 		player[turn].AI.alertList += "<div>" + alertText + "</div>";
+	}
+}
+
+// Update the live board-center panel: whose turn it is and the current dice.
+function updateCenterPanel(diceKnown) {
+	var dot = document.getElementById("center-turn-dot");
+	var text = document.getElementById("center-turn-text");
+	if (dot && text && player[turn]) {
+		dot.style.backgroundColor = player[turn].color || "#888";
+		text.textContent = player[turn].name ? player[turn].name + "'s turn" : "Turn " + turn;
+	}
+
+	var faces = ["?", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+	var d0 = document.getElementById("center-die0");
+	var d1 = document.getElementById("center-die1");
+	if (d0 && d1) {
+		if (diceKnown) {
+			var v0 = game.getDie(1);
+			var v1 = game.getDie(2);
+			d0.textContent = faces[v0] || "?";
+			d1.textContent = faces[v1] || "?";
+			d0.classList.add("rolled");
+			d1.classList.add("rolled");
+		} else {
+			d0.textContent = "?";
+			d1.textContent = "?";
+			d0.classList.remove("rolled");
+			d1.classList.remove("rolled");
+		}
 	}
 }
 
@@ -1370,9 +1416,14 @@ function updateMoney() {
 		p_i = player[i];
 
 		$("#moneybarrow" + i).show();
-		document.getElementById("p" + i + "moneybar").style.border = "2px solid " + p_i.color;
+		var cell = document.getElementById("p" + i + "moneybar");
+		cell.style.border = "2px solid " + p_i.color;
 		document.getElementById("p" + i + "money").innerHTML = p_i.money;
 		document.getElementById("p" + i + "moneyname").innerHTML = p_i.name;
+
+		// Highlight the active player's row and dim eliminated players.
+		cell.classList.toggle("is-turn", i === turn);
+		cell.classList.toggle("is-out", !!p_i.lost);
 	}
 
 	if (document.getElementById("landed").innerHTML === "") {
@@ -1433,6 +1484,8 @@ function updateDice() {
 		document.getElementById("die0").title = "Die";
 		document.getElementById("die1").title = "Die";
 	}
+
+	updateCenterPanel(true);
 }
 
 function updateOwned() {
@@ -1618,14 +1671,6 @@ function updateOption() {
 
 			var maxhouse = 0;
 			var minhouse = 5;
-
-			for (var j = 0; j < max; j++) {
-
-				if (square[currentSquare.group[j]].house > 0) {
-					allGroupUninproved = false;
-					break;
-				}
-			}
 
 			var max = sq.group.length;
 			for (var i = 0; i < max; i++) {
@@ -2017,58 +2062,100 @@ function useJailCard() {
 	updatePosition();
 }
 
+// Compute building-relevant facts about a property's color group:
+// whether the active owner owns the whole group, whether any property is
+// mortgaged, and the min/max house count across the group. Used to enforce
+// the even-build rule for every caller (humans, AI, and remote actions).
+function groupBuildInfo(sq) {
+	var info = { ownsAll: true, anyMortgaged: false, minHouse: 5, maxHouse: 0 };
+	if (!sq.group) {
+		info.ownsAll = false;
+		return info;
+	}
+	for (var i = 0; i < sq.group.length; i++) {
+		var s = square[sq.group[i]];
+		if (s.owner !== sq.owner) {
+			info.ownsAll = false;
+		}
+		if (s.mortgage) {
+			info.anyMortgaged = true;
+		}
+		if (s.house < info.minHouse) {
+			info.minHouse = s.house;
+		}
+		if (s.house > info.maxHouse) {
+			info.maxHouse = s.house;
+		}
+	}
+	return info;
+}
+
 function buyHouse(index) {
 	var sq = square[index];
 	var p = player[sq.owner];
 	var houseSum = 0;
 	var hotelSum = 0;
 
-	if (p.money - sq.houseprice < 0) {
-		if (sq.house == 4) {
-			return false;
-		} else {
-			return false;
-		}
-
-	} else {
-		for (var i = 0; i < 40; i++) {
-			if (square[i].hotel === 1) {
-				hotelSum++;
-			} else {
-				houseSum += square[i].house;
-			}
-		}
-
-		if (sq.house < 4) {
-			if (houseSum >= 32) {
-				return false;
-
-			} else {
-				sq.house++;
-				addAlert(p.name + " placed a house on " + sq.name + ".");
-			}
-
-		} else {
-			if (hotelSum >= 12) {
-				return;
-
-			} else {
-				sq.house = 5;
-				sq.hotel = 1;
-				addAlert(p.name + " placed a hotel on " + sq.name + ".");
-			}
-		}
-
-		p.pay(sq.houseprice, 0);
-
-		updateOwned();
-		updateMoney();
+	// Only buildable color groups (groupNumber >= 3) can hold houses, and the
+	// owner must afford it.
+	if (!p || sq.groupNumber < 3 || p.money - sq.houseprice < 0) {
+		return false;
 	}
+
+	// Must own the entire, unmortgaged color group to build.
+	var info = groupBuildInfo(sq);
+	if (!info.ownsAll || info.anyMortgaged) {
+		return false;
+	}
+
+	// Even-build rule: cannot raise a property above the group minimum.
+	if (sq.house > info.minHouse || sq.hotel === 1) {
+		return false;
+	}
+
+	for (var i = 0; i < 40; i++) {
+		if (square[i].hotel === 1) {
+			hotelSum++;
+		} else {
+			houseSum += square[i].house;
+		}
+	}
+
+	if (sq.house < 4) {
+		if (houseSum >= 32) {
+			return false;
+		}
+		sq.house++;
+		addAlert(p.name + " placed a house on " + sq.name + ".");
+	} else {
+		if (hotelSum >= 12) {
+			return false;
+		}
+		sq.house = 5;
+		sq.hotel = 1;
+		addAlert(p.name + " placed a hotel on " + sq.name + ".");
+	}
+
+	p.pay(sq.houseprice, 0);
+
+	updateOwned();
+	updateMoney();
+	return true;
 }
 
 function sellHouse(index) {
 	sq = square[index];
 	p = player[sq.owner];
+
+	if (!p || (sq.house === 0 && sq.hotel === 0)) {
+		return false;
+	}
+
+	// Even-sell rule: cannot drop a property below the group maximum.
+	var info = groupBuildInfo(sq);
+	if (sq.hotel !== 1 && sq.house < info.maxHouse) {
+		return false;
+	}
 
 	if (sq.hotel === 1) {
 		sq.hotel = 0;
@@ -2082,6 +2169,7 @@ function sellHouse(index) {
 	p.money += sq.houseprice * 0.5;
 	updateOwned();
 	updateMoney();
+	return true;
 }
 
 function showStats() {
@@ -2564,6 +2652,7 @@ function play() {
 
 	$("#die0").hide();
 	$("#die1").hide();
+	updateCenterPanel(false);
 
 	if (p.jail) {
 		$("#landed").show();
